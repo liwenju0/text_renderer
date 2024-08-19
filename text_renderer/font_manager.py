@@ -64,21 +64,28 @@ class FontManager:
 
     def _load_font_support_chars(self):
         for font_path in self.font_paths:
-            ttf = self._load_ttfont(font_path)
-
-            chars_int = set()
+    
             try:
-                for table in ttf["cmap"].tables:
-                    for k, v in table.cmap.items():
-                        chars_int.add(k)
-            except AssertionError as e:
-                logger.error(f"Load font file {font_path} failed, skip it. Error: {e}")
+                font = TTFont(font_path)
+                cmap = font.getBestCmap()
+                
+                supported_chars = set()
+                for unicode_value in cmap:
+                    glyph_name = cmap[unicode_value]
+                    glyph = font['glyf'][glyph_name]
+                    
+                    if glyph.numberOfContours > 0:
+                        supported_chars.add(chr(unicode_value))
+                
+                self.font_support_chars_cache[font_path] = supported_chars
+                
+                font.close()
+            except Exception as e:
+                logger.error(f"加载字体文件 {font_path} 失败,跳过。错误: {e}")
 
-            supported_chars = set([chr(c_int) for c_int in chars_int])
-
-            ttf.close()
-
-            self.font_support_chars_cache[font_path] = supported_chars
+        # 如果所有字体都加载失败,抛出异常
+        if not self.font_support_chars_cache:
+            raise PanicError("所有字体文件加载失败")
 
     def update_font_support_chars(self, chars_file):
         """
